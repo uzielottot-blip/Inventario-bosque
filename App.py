@@ -2,6 +2,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import date, datetime
+import time
 
 # Configuración de página profesional
 st.set_page_config(page_title="Bosque Eterno - Inventario Realtime", layout="wide", page_icon="🌳")
@@ -34,8 +35,8 @@ with st.sidebar:
         u_caja = st.number_input("¿Piezas por caja?", min_value=1, step=1)
         medida_in, total_calc = "Piezas", c_cajas * u_caja
     elif empaque_in == "Pieza Única":
-        medida_in = st.selectbox("Presentación", ["Gramos (g)", "Mililitros (ml)", "Litros (L)", "Piezas"])
-        total_calc = st.number_input(f"Contenido ({medida_in})", min_value=0.1, step=1.0)
+        medida_in = st.selectbox("Presentación", ["Piezas", "Gramos (g)", "Mililitros (ml)", "Litros (L)"])
+        total_calc = st.number_input(f"Cantidad de {medida_in}", min_value=1.0, step=1.0)
     elif empaque_in == "Bulto":
         c_bultos = st.number_input("¿Bultos?", min_value=1, step=1)
         medida_in = st.selectbox("Unidad", ["Kilogramos (kg)", "Gramos (g)", "Litros (L)"])
@@ -50,7 +51,7 @@ with st.sidebar:
         if nombre_in and empaque_in != "Selecciona...":
             # Crear nueva fila
             nueva_fila = pd.DataFrame([{
-                "Producto": nombre_in,
+                "Producto": nombre_in.replace("*", "").strip(),
                 "Empaque": empaque_in,
                 "Stock": float(total_calc),
                 "Medida": medida_in,
@@ -60,9 +61,11 @@ with st.sidebar:
                 "Notas": notas_in
             }])
             # Actualizar Google Sheets
-            df_final = pd.concat([df, nueva_fila], ignore_index=True)
+            df_actualizado = conn.read()
+            df_final = pd.concat([df_actualizado, nueva_fila], ignore_index=True)
             conn.update(data=df_final)
-            st.success("¡Registrado en la nube!")
+            st.success(f"✅ ¡{nombre_in} se registró exitosamente en la nube!")
+            time.sleep(2)
             st.rerun()
 
 # --- PESTAÑAS ---
@@ -110,7 +113,7 @@ with tab_usar:
         if opciones:
             with st.form("form_uso"):
                 sel = st.selectbox("¿Qué vas a ocupar?", opciones)
-                cant_u = st.number_input("Cantidad a retirar", min_value=0.1)
+                cant_u = st.number_input("Cantidad a retirar", min_value=1.0, step=1.0)
                 f_u = st.date_input("Fecha de hoy", date.today())
                 mot_u = st.text_input("Motivo (Ej: Servicio Sala A)")
                 
@@ -125,10 +128,16 @@ with tab_usar:
                         # Fecha terminado
                         if df.at[idx_u, 'Stock'] <= 0: df.at[idx_u, 'Terminado'] = str(f_u)
                         # Historial
-                        df.at[idx_u, 'Notas'] += f" | [{f_u}] -{cant_u} ({mot_u})"
-                        
+                        nota_actual = str(df.at[idx_u, 'Notas'])
+
+                        df['Notas'] = df['Notas'].astype(object)
+                        nota_actual = str(df.at[idx_u, 'Notas'])
+                        if nota_actual == "nan" or nota_actual == "None":nota_actual = ""
+                        df.at[idx_u, 'Notas'] = nota_actual + f" | [{f_u}] -{cant_u} ({mot_u})"
                         conn.update(data=df)
                         st.success("¡Nube actualizada!")
+                        st.success(f"✅ ¡Salida confirmada exitosamente! Se retiró la cantidad solicitada.")
+                        time.sleep(2)
                         st.rerun()
                     else: st.error("No hay suficiente stock.")
 
@@ -157,3 +166,22 @@ with tab_admin:
                 df = df.drop(idx_e)
                 conn.update(data=df)
                 st.rerun()
+                st.divider() # Dibuja una línea separadora bonita
+st.subheader("🛒 Lista de Compras Urgente")
+
+# Convertimos la columna a números por si hay algún texto accidental
+df['Stock'] = pd.to_numeric(df['Stock'], errors='coerce')
+
+# Filtramos solo los que tienen stock menor o igual a tu límite (stock_minimo)
+# Definimos el límite de alerta (puedes cambiar este 5 por el número que quieras)
+stock_minimo = 5
+df_compras = df[df['Stock'] <= stock_minimo]
+
+# Si la lista NO está vacía, mostramos la advertencia y la tabla
+if not df_compras.empty:
+    st.warning("⚠️ Atención: Es necesario pedir los siguientes insumos a la brevedad:")
+    # Solo mostramos el Nombre, el Stock actual y la Medida
+    st.dataframe(df_compras[['Producto', 'Stock', 'Medida']])
+else:
+    # Si la lista está vacía, mostramos un mensaje de tranquilidad
+    st.success("✨ ¡Todo el inventario está en niveles óptimos! No hay compras urgentes.")
