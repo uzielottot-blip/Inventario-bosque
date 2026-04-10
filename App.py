@@ -111,13 +111,13 @@ with tab_usar:
                     for i in df.index if float(df.at[i, 'Stock']) > 0]
         
         if opciones:
-            with st.form("form_uso"):
+            
                 sel = st.selectbox("¿Qué vas a ocupar?", opciones)
                 cant_u = st.number_input("Cantidad a retirar", min_value=1.0, step=1.0)
                 f_u = st.date_input("Fecha de hoy", date.today())
                 mot_u = st.text_input("Motivo (Ej: Servicio Sala A)")
                 
-                if st.form_submit_button("Confirmar Salida"):
+                if st.button("Confirmar Salida", type="primary"):
                     idx_u = int(sel.split(" | ")[0])
                     stock_act = float(df.at[idx_u, 'Stock'])
                     
