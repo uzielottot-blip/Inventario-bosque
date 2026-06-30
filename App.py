@@ -17,7 +17,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 # Leer datos (ttl=0 para ver cambios al instante)
 try:
-    df = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/1bXMFdp8zZ_l1h3kPtIpINesdm1QPw1d_RYMuh7kBkc0/edit", ttl="0s")
+    df = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/1bXMFdp8zZ_l1h3kPtIpINesdm1QPw1d_RYMuh7kBkc0/edit", ttl="5s")
 except Exception as e:
     st.error(f"Error de conexión: {e}")
     st.stop()
