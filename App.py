@@ -171,12 +171,15 @@ with tab_admin:
             n_nom = st.text_input("Nombre", value=df.at[idx_e, 'Producto'])
             n_area = st.text_input("Área", value=str(df.at[idx_e, 'Área']).replace('nan', ''))
             n_stk = st.number_input("Stock", value=float(df.at[idx_e, 'Stock']))
+            n_min = st.number_input("Stock Mínimo", value=float(df.at[idx_e, 'Stock Mínimo']))
             n_ape = st.text_input("Fecha Apertura (YYYY-MM-DD)", value=df.at[idx_e, 'Apertura'])
             n_not = st.text_area("Notas", value=df.at[idx_e, 'Notas'])
+
             if st.button("Guardar Cambios", type="primary"):
                 df.at[idx_e, 'Producto'], df.at[idx_e, 'Stock'] = n_nom, n_stk
                 df.at[idx_e, 'Apertura'], df.at[idx_e, 'Notas'] = n_ape, n_not
                 df.at[idx_e, 'Área'] = n_area
+                df.at[idx_e, 'Stock Mínimo'] = n_min
                 conn.update(data=df)
                 st.rerun()
         with col_e2:
