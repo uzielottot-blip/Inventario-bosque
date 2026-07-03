@@ -28,9 +28,9 @@ with st.sidebar:
         st.session_state.limpiador = 0
     st.header("📥 Nueva Entrada")
     nombre_in = st.text_input("Nombre del producto", key=f"nombre_{st.session_state.limpiador}")
-    area_in = st.selectbox("Área de destino", ["Selecciona...", "Operativo", "Caseta", "Boutique", "Vivero", "Papeleria", "Sala de despedida"], key=f"area_{st.session_state.limpiador}")
+    area_in = st.selectbox("Área de destino", ["Selecciona...", "Operativo", "Caseta", "Boutique", "Vivero", "Papeleria", "Limpieza"], key=f"area_{st.session_state.limpiador}")
     empaque_in = st.selectbox("¿Cómo viene el empaque?", ["Selecciona...", "Caja", "Pieza Única", "Bulto"], key=f"empaque_{st.session_state.limpiador}")
-    
+    min_in = st.number_input("Alerta de stock bajo en:", min_value=0.0, step=1.0, value=5.0) 
     total_calc = 0
     medida_in = ""
 
@@ -59,6 +59,7 @@ with st.sidebar:
                 "Área": area_in,
                 "Empaque": empaque_in,
                 "Stock": float(total_calc),
+                "Stock Mínimo": float(min_in),
                 "Medida": medida_in,
                 "Llegada": str(f_llegada_in),
                 "Apertura": str(f_apert_in) if f_apert_in else "-",
@@ -82,8 +83,14 @@ tab_ver, tab_usar, tab_admin = st.tabs(["🔍 Buscador e Inventario", "➖ Regis
 
 with tab_ver:
     if not df.empty:
-        busqueda = st.text_input("🔎 Buscar producto...", placeholder="Ej: Café, Sanitas...")
+        col_b1, col_b2 = st.columns(2)
+        with col_b1:
+            busqueda = st.text_input("🔎 Buscar producto...", placeholder="Ej: Café, Sanitas...")
+        with col_b2:
+            filtro_area = st.selectbox("📂 Filtrar por Área", ["Todas", "Operativo", "Caseta", "Boutique", "Vivero", "Papeleria", "Limpieza"])
         df_mostrar = df.copy()
+        if filtro_area != "Todas":
+            df_mostrar = df_mostrar[df_mostrar["Área"] == filtro_area]
         if busqueda:
             df_mostrar = df[df["Producto"].str.contains(busqueda, case=False, na=False)]
 
@@ -185,17 +192,18 @@ st.subheader("🛒 Lista de Compras Urgente")
 
 # Convertimos la columna a números por si hay algún texto accidental
 df['Stock'] = pd.to_numeric(df['Stock'], errors='coerce')
+df['Stock Mínimo'] = pd.to_numeric(df['Stock Mínimo'], errors='coerce').fillna(0)
 
 # Filtramos solo los que tienen stock menor o igual a tu límite (stock_minimo)
 # Definimos el límite de alerta (puedes cambiar este 5 por el número que quieras)
 stock_minimo = 5
-df_compras = df[df['Stock'] <= stock_minimo]
+df_compras = df[df['Stock'] <= df['Stock Mínimo']]
 
 # Si la lista NO está vacía, mostramos la advertencia y la tabla
 if not df_compras.empty:
     st.warning("⚠️ Atención: Es necesario pedir los siguientes insumos a la brevedad:")
     # Solo mostramos el Nombre, el Stock actual y la Medida
-    st.dataframe(df_compras[['Producto', 'Stock', 'Medida']])
+    st.dataframe(df_compras[['Producto', 'Stock', 'Stock Mínimo', 'Medida']])
 else:
     # Si la lista está vacía, mostramos un mensaje de tranquilidad
     st.success("✨ ¡Todo el inventario está en niveles óptimos! No hay compras urgentes.")
