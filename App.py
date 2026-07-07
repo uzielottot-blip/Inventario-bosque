@@ -117,9 +117,10 @@ with tab_ver:
 
         for index, fila in df_mostrar.iterrows():
             stock_val = float(fila["Stock"])
+            min_val = float(fila["Stock Mínimo"]) if pd.notna(fila.get("Stock Mínimo")) else 0.0
             # Semáforo
             if stock_val <= 0: semaforo = "🔴 Agotado"
-            elif stock_val < 10: semaforo = "🟡 Bajo"
+            elif stock_val <= min_val: semaforo = "🟡 Bajo"
             else: semaforo = "🟢 OK"
 
             r_cols = st.columns([2, 1.5, 1, 1, 1, 1, 2])
