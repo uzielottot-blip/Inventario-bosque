@@ -8,6 +8,20 @@ import time
 # Configuración de página profesional
 st.set_page_config(page_title="Bosque Eterno - Inventario Realtime", layout="wide", page_icon="🌳")
 
+# --- CANDADO DE SEGURIDAD ---
+if "acceso_concedido" not in st.session_state:
+    st.session_state.acceso_concedido = False
+if not st.session_state.acceso_concedido:
+    pwd = st.text_input("Contraseña", type="password")
+    if st.button("Entrar"):
+        if pwd == st.secrets["clave_acceso"]:
+            st.session_state.acceso_concedido = True
+            st.rerun()
+        else:
+            st.error("❌ Contraseña incorrecta")
+    st.stop()
+    st.title("🔒 Bosque Eterno - Acceso Restringido")
+    st.info("Por favor, ingresa la contraseña para acceder al sistema de inventario.")
 st.title("🌳 Gestión de Insumos - Bosque Eterno (Nube)")
 st.markdown("---")
 
