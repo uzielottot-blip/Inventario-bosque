@@ -109,29 +109,33 @@ with tab_ver:
             df_mostrar = df[df["Producto"].str.contains(busqueda, case=False, na=False)]
 
         st.divider()
-        # Encabezados visuales
-        h_cols = st.columns([2, 1.5, 1, 1, 1, 1, 2])
-        headers = ["Producto", "Área", "Stock", "Medida", "Estado", "Apertura", "Notas / Historial"]
-        for i, h in enumerate(headers): h_cols[i].write(f"**{h}**")
-        st.divider()
+        # 1. Función rápida para calcular el semáforo de toda la tabla
+        def calcular_estado(fila):
+            stock = float(fila["Stock"]) if pd.notna(fila["Stock"]) else 0.0
+            minimo = float(fila["Stock Mínimo"]) if pd.notna(fila.get("Stock Mínimo")) else 0.0
+            
+            if stock <= 0:
+                return "🔴 Agotado"
+            elif stock <= minimo:
+                return "🟡 Bajo"
+            else:
+                return "🟢 Óptimo"
 
-        for index, fila in df_mostrar.iterrows():
-            stock_val = float(fila["Stock"])
-            min_val = float(fila["Stock Mínimo"]) if pd.notna(fila.get("Stock Mínimo")) else 0.0
-            # Semáforo
-            if stock_val <= 0: semaforo = "🔴 Agotado"
-            elif stock_val <= min_val: semaforo = "🟡 Bajo"
-            else: semaforo = "🟢 OK"
+        # 2. Creamos la columna de Estado usando la función
+        df_mostrar["Estado"] = df_mostrar.apply(calcular_estado, axis=1)
 
-            r_cols = st.columns([2, 1.5, 1, 1, 1, 1, 2])
-            r_cols[0].write(f"**{fila['Producto']}**")
-            r_cols[1].write(str(fila['Área']).replace('nan', '-')) # Muestra el área o un guión si está vacío
-            r_cols[2].write(f"{fila['Stock']}")
-            r_cols[3].write(f"{fila['Medida']}")
-            r_cols[4].write(semaforo)
-            r_cols[5].write(fila["Apertura"])
-            r_cols[6].write(f"_{fila['Notas']}_")
-            st.divider()
+        # 3. Ordenamos las columnas (agregué Apertura para que no se pierda)
+        columnas_visibles = ["Producto", "Área", "Stock", "Medida", "Estado", "Apertura", "Notas"]
+        
+        df_limpio = df_mostrar[columnas_visibles]
+
+        # 4. Magia pura: Dibujamos la tabla interactiva
+        st.dataframe(
+            df_limpio, 
+            use_container_width=True, 
+            hide_index=True           
+        )
+
     else:
         st.info("La nube está vacía.")
 
