@@ -99,14 +99,20 @@ with tab_ver:
     if not df.empty:
         col_b1, col_b2 = st.columns(2)
         with col_b1:
-            busqueda = st.text_input("🔎 Buscar producto...", placeholder="Ej: Café, Sanitas...")
+            opciones_busqueda = df["Producto"].unique().tolist()
+            busqueda = st.multiselect(
+                "🔍 Buscar producto(s)...", 
+                opciones_busqueda, 
+                placeholder="Escribe o selecciona..."
+            )
         with col_b2:
-            filtro_area = st.selectbox("📂 Filtrar por Área", ["Todas", "Operativo", "Caseta", "Boutique", "Vivero", "Papeleria", "Limpieza"])
+            opciones_area = ["Todas"] + df["Área"].dropna().unique().tolist()
+            filtro_area = st.selectbox("📁 Filtrar por Área", opciones_area)
         df_mostrar = df.copy()
         if filtro_area != "Todas":
             df_mostrar = df_mostrar[df_mostrar["Área"] == filtro_area]
         if busqueda:
-            df_mostrar = df[df["Producto"].str.contains(busqueda, case=False, na=False)]
+            df_mostrar = df_mostrar[df_mostrar["Producto"].isin(busqueda)]
 
         st.divider()
         # 1. Función rápida para calcular el semáforo de toda la tabla
@@ -147,69 +153,78 @@ with tab_usar:
                     for i in df.index if float(df.at[i, 'Stock']) > 0]
         
         if opciones:
-            
+                opciones.insert(0, "Selecciona...")
                 sel = st.selectbox("¿Qué vas a ocupar?", opciones)
-                cant_u = st.number_input("Cantidad a retirar", min_value=1.0, step=1.0)
-                f_u = st.date_input("Fecha de hoy", date.today())
-                mot_u = st.text_input("Motivo (Ej: Servicio Sala A)")
+                if sel != "Selecciona...":
+                    cant_u = st.number_input("Cantidad a retirar", min_value=1.0, step=1.0)
+                    f_u = st.date_input("Fecha de hoy", date.today())
+                    mot_u = st.text_input("Motivo (Ej: Servicio Sala A)")
                 
-                if st.button("Confirmar Salida", type="primary"):
-                    idx_u = int(sel.split(" | ")[0])
-                    stock_act = float(df.at[idx_u, 'Stock'])
+                    if st.button("Confirmar Salida", type="primary"):
+                        idx_u = int(sel.split(" | ")[0])
+                        stock_act = float(df.at[idx_u, 'Stock'])
                     
-                    if cant_u <= stock_act:
-                        df.at[idx_u, 'Stock'] = round(stock_act - cant_u, 2)
-                        # Fecha de apertura automática
-                        if df.at[idx_u, 'Apertura'] == "-": df.at[idx_u, 'Apertura'] = str(f_u)
-                        # Fecha terminado
-                        if df.at[idx_u, 'Stock'] <= 0: df.at[idx_u, 'Terminado'] = str(f_u)
-                        # Historial
-                        nota_actual = str(df.at[idx_u, 'Notas'])
+                        if cant_u <= stock_act:
+                            df.at[idx_u, 'Stock'] = round(stock_act - cant_u, 2)
+                             
+                            
+                            # Fecha de apertura automática
+                            if df.at[idx_u, 'Apertura'] == "-": df.at[idx_u, 'Apertura'] = str(f_u)
+                            # Fecha terminado
+                            if df.at[idx_u, 'Stock'] <= 0: df.at[idx_u, 'Terminado'] = str(f_u)
+                            # Historial
+                            nota_actual = str(df.at[idx_u, 'Notas'])
 
-                        df['Notas'] = df['Notas'].astype(object)
-                        nota_actual = str(df.at[idx_u, 'Notas'])
-                        if nota_actual == "nan" or nota_actual == "None":nota_actual = ""
-                        df.at[idx_u, 'Notas'] = nota_actual + f" | [{f_u}] -{cant_u} ({mot_u})"
-                        conn.update(data=df)
-                        st.success("¡Nube actualizada!")
-                        st.success(f"✅ ¡Salida confirmada exitosamente! Se retiró la cantidad solicitada.")
-                        time.sleep(1)
-                        st.rerun()
-                    else: st.error("No hay suficiente stock.")
+                            df['Notas'] = df['Notas'].astype(object)
+                            nota_actual = str(df.at[idx_u, 'Notas'])
+                            if nota_actual == "nan" or nota_actual == "None":nota_actual = ""
+                            df.at[idx_u, 'Notas'] = nota_actual + f" | [{f_u}] -{cant_u} ({mot_u})"
+                            conn.update(data=df)
+                            st.success("¡Nube actualizada!")
+                            st.success(f"✅ ¡Salida confirmada exitosamente! Se retiró la cantidad solicitada.")
+                            time.sleep(1)
+                            st.rerun()
+                        else: st.error("No hay suficiente stock.")
 
 with tab_admin:
     st.header("🛠️ Modificar o Borrar")
     if not df.empty:
         edit_list = [f"{i} | {df.at[i, 'Producto']} - {df.at[i, 'Área']}" for i in df.index]
-        sel_edit = st.selectbox("Selecciona para editar:", edit_list)
-        idx_e = int(sel_edit.split(" | ")[0])
-        
-        col_e1, col_e2 = st.columns(2)
-        with col_e1:
-            st.subheader("📝 Editar")
-            n_nom = st.text_input("Nombre", value=df.at[idx_e, 'Producto'])
-            n_area = st.text_input("Área", value=str(df.at[idx_e, 'Área']).replace('nan', ''))
-            n_stk = st.number_input("Stock", value=float(df.at[idx_e, 'Stock']))
-            n_min = st.number_input("Stock Mínimo", value=float(df.at[idx_e, 'Stock Mínimo']))
-            n_ape = st.text_input("Fecha Apertura (YYYY-MM-DD)", value=df.at[idx_e, 'Apertura'])
-            n_not = st.text_area("Notas", value=df.at[idx_e, 'Notas'])
+        edit_list.insert(0, "Selecciona...")
+        sel_edit = st.selectbox("Selecciona para editar:", edit_list, key="selector_edicion")
+        if sel_edit != "Selecciona...":
+            idx_e = int(sel_edit.split(" | ")[0])
+            
+            col_e1, col_e2 = st.columns(2)
+            with col_e1:
+                st.subheader("📝 Editar")
+                n_nom = st.text_input("Nombre", value=df.at[idx_e, 'Producto'])
+                n_area = st.text_input("Área", value=str(df.at[idx_e, 'Área']).replace('nan', ''))
+                n_stk = st.number_input("Stock", value=float(df.at[idx_e, 'Stock']), step=1.0)
+                n_min = st.number_input("Stock Mínimo", value=float(df.at[idx_e, 'Stock Mínimo']), step=1.0)
+                n_ape = st.text_input("Fecha Apertura (YYYY-MM-DD)", value=df.at[idx_e, 'Apertura'])
+                n_not = st.text_area("Notas", value=df.at[idx_e, 'Notas'])
 
-            if st.button("Guardar Cambios", type="primary"):
-                df.at[idx_e, 'Producto'], df.at[idx_e, 'Stock'] = n_nom, n_stk
-                df.at[idx_e, 'Apertura'], df.at[idx_e, 'Notas'] = n_ape, n_not
-                df.at[idx_e, 'Área'] = n_area
-                df.at[idx_e, 'Stock Mínimo'] = n_min
-                conn.update(data=df)
-                st.rerun()
-        with col_e2:
-            st.subheader("🗑️ Eliminar")
-            if st.button("BORRAR DE LA NUBE"):
-                df = df.drop(idx_e)
-                conn.update(data=df)
-                st.success("🗑️ El producto se ha borrado correctamente de la base de datos.")
-                time.sleep(2)
-                st.rerun()
-                st.divider() # Dibuja una línea separadora bonita
+                if st.button("Guardar Cambios", type="primary"):
+                    df.at[idx_e, 'Producto'], df.at[idx_e, 'Stock'] = n_nom, n_stk
+                    df.at[idx_e, 'Apertura'], df.at[idx_e, 'Notas'] = n_ape, n_not
+                    df.at[idx_e, 'Área'] = n_area
+                    df.at[idx_e, 'Stock Mínimo'] = n_min
+                    conn.update(data=df)
+                    st.success("¡Cambios guardados!")
+                    time.sleep(1)
+                    del st.session_state["selector_edicion"]
+                    st.rerun()
+            with col_e2:
+                st.subheader("🗑️ Eliminar")
+                if st.button("BORRAR DE LA NUBE"):
+                    df = df.drop(idx_e)
+                    conn.update(data=df)
+                    st.success("🗑️ El producto se ha borrado correctamente de la base de datos.")
+                    time.sleep(1)
+                    del st.session_state["selector_edicion"]
+                    st.rerun()
+                    st.divider() # Dibuja una línea separadora bonita
 st.subheader("🛒 Lista de Compras Urgente")
 
 # Convertimos la columna a números por si hay algún texto accidental
