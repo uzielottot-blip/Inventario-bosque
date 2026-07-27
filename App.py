@@ -93,7 +93,7 @@ with st.sidebar:
             st.rerun()
 
 # --- PESTAÑAS ---
-tab_ver, tab_usar, tab_admin = st.tabs(["🔍 Buscador e Inventario", "➖ Registrar Salida", "🛠️ Editar o Borrar"])
+tab_ver, tab_usar, tab_admin = st.tabs(["🔍 Buscador e Inventario", "🔄 Registrar Movimiento", "🛠️ Editar o Borrar"])
 
 with tab_ver:
     if not df.empty:
@@ -146,45 +146,77 @@ with tab_ver:
         st.info("La nube está vacía.")
 
 with tab_usar:
-    st.header("➖ Descontar Insumo")
-    if not df.empty:
-        # Solo mostrar productos con stock
-        opciones = [f"{i} | {df.at[i, 'Producto']} - {df.at[i, 'Área']} ({df.at[i, 'Stock']} {df.at[i, 'Medida']})" 
-                    for i in df.index if float(df.at[i, 'Stock']) > 0]
-        
-        if opciones:
-                opciones.insert(0, "Selecciona...")
-                sel = st.selectbox("¿Qué vas a ocupar?", opciones)
-                if sel != "Selecciona...":
-                    cant_u = st.number_input("Cantidad a retirar", min_value=1.0, step=1.0)
-                    f_u = st.date_input("Fecha de hoy", date.today())
-                    mot_u = st.text_input("Motivo (Ej: Servicio Sala A)")
+        st.header("🔄 Registrar Movimiento")
+        if not df.empty:
+            # 1. ¡OJO AQUÍ! Quitamos el candado de "solo mostrar > 0" para que puedas rellenar los agotados
+            opciones = [f"{i} | {df.at[i, 'Producto']} - {df.at[i, 'Área']} (Stock: {df.at[i, 'Stock']} {df.at[i, 'Medida']})" for i in df.index]
+            
+            sel = st.selectbox(
+                "¿A qué producto le harás el movimiento?", 
+                opciones,
+                index=None,
+                placeholder="Selecciona el producto...",
+                key=f"movimiento_{st.session_state.limpiador}"
+            )
+
+            if sel is not None:
+                idx_u = int(sel.split(" | ")[0])
+                stock_act = float(df.at[idx_u, 'Stock'])
                 
-                    if st.button("Confirmar Salida", type="primary"):
-                        idx_u = int(sel.split(" | ")[0])
-                        stock_act = float(df.at[idx_u, 'Stock'])
-                    
+                # 2. El interruptor mágico para elegir qué hacer
+                st.write("###") # Espacio en blanco
+                tipo_mov = st.radio("Tipo de movimiento:", ["Salida ➖", "Entrada ➕"], horizontal=True)
+                
+                # 3. Formulario unificado
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    cant_u = st.number_input("Cantidad", min_value=1.0, step=1.0)
+                with col_m2:
+                    f_u = st.date_input("Fecha", date.today())
+                
+                mot_u = st.text_input("Motivo / Proveedor / Quién lo usa")
+
+                if st.button("Confirmar Movimiento", type="primary"):
+                    # Preparamos la nota (historial)
+                    nota_actual = str(df.at[idx_u, 'Notas'])
+                    if nota_actual == "nan" or nota_actual == "None": nota_actual = ""
+
+                    # --- LÓGICA SI ES SALIDA ---
+                    if tipo_mov == "Salida ➖":
                         if cant_u <= stock_act:
                             df.at[idx_u, 'Stock'] = round(stock_act - cant_u, 2)
-                             
                             
-                            # Fecha de apertura automática
+                            # Fechas automáticas de salida
                             if df.at[idx_u, 'Apertura'] == "-": df.at[idx_u, 'Apertura'] = str(f_u)
-                            # Fecha terminado
                             if df.at[idx_u, 'Stock'] <= 0: df.at[idx_u, 'Terminado'] = str(f_u)
-                            # Historial
-                            nota_actual = str(df.at[idx_u, 'Notas'])
-
-                            df['Notas'] = df['Notas'].astype(object)
-                            nota_actual = str(df.at[idx_u, 'Notas'])
-                            if nota_actual == "nan" or nota_actual == "None":nota_actual = ""
+                            
+                            # Escribimos el historial con un MENOS (-)
                             df.at[idx_u, 'Notas'] = nota_actual + f" | [{f_u}] -{cant_u} ({mot_u})"
+                            
                             conn.update(data=df)
-                            st.success("¡Nube actualizada!")
-                            st.success(f"✅ ¡Salida confirmada exitosamente! Se retiró la cantidad solicitada.")
+                            st.success("✅ ¡Salida registrada! Se descontó del stock.")
+                            st.session_state.limpiador += 1
                             time.sleep(1)
                             st.rerun()
-                        else: st.error("No hay suficiente stock.")
+                        else:
+                            st.error("❌ No hay suficiente stock para esta salida.")
+
+                    # --- LÓGICA SI ES ENTRADA ---
+                    elif tipo_mov == "Entrada ➕":
+                        df.at[idx_u, 'Stock'] = round(stock_act + cant_u, 2)
+                        
+                        # Si estaba terminado, lo revivimos
+                        if df.at[idx_u, 'Stock'] > 0:
+                            df.at[idx_u, 'Terminado'] = "-"
+                        
+                        # Escribimos el historial con un MÁS (+)
+                        df.at[idx_u, 'Notas'] = nota_actual + f" | [{f_u}] +{cant_u} ({mot_u})"
+                        
+                        conn.update(data=df)
+                        st.success("✅ ¡Ingreso registrado! Se sumó al stock.")
+                        st.session_state.limpiador += 1
+                        time.sleep(1)
+                        st.rerun()
 
 with tab_admin:
     st.header("🛠️ Modificar o Borrar")
